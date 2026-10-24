@@ -1,0 +1,207 @@
+:root {
+  --desk: #e6dfd0;
+  --paper: #fbf7ec;
+  --ink: #25304a;
+  --pencil: #6b685f;
+  --rule: #d8d2c0;
+  --red: #c4513f;
+  --hand: "Caveat", "Segoe Print", "Bradley Hand", cursive;
+  --body: "Karla", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --desk: #121316;
+    --paper: #1e2025;
+    --ink: #e8e3d3;
+    --pencil: #8f8c82;
+    --rule: #33363d;
+    --red: #e0705d;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+/* The sheet of paper */
+.page {
+  position: relative;
+  max-width: 640px;
+  min-height: 70vh;
+  margin: 2rem auto 4rem;
+  padding: 2.5rem 1.5rem 3rem 4.5rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+
+/* The red margin line */
+.page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3.25rem;
+  width: 2px;
+  background: var(--red);
+  opacity: 0.6;
+}
+
+@media (max-width: 520px) {
+  .page {
+    margin: 0;
+    min-height: 100vh;
+    padding: 2rem 1rem 3rem 3.5rem;
+    border-width: 0;
+  }
+  .page::before { left: 2.4rem; }
+}
+
+h1 {
+  font-family: var(--hand);
+  font-weight: 700;
+  font-size: clamp(2.8rem, 8vw, 3.8rem);
+  line-height: 1;
+  margin: 0;
+}
+
+.summary {
+  font-family: var(--hand);
+  font-size: 1.5rem;
+  color: var(--pencil);
+  margin: 0.25rem 0 1.5rem;
+}
+
+h2 {
+  font-family: var(--hand);
+  font-weight: 500;
+  font-size: 1.8rem;
+  color: var(--pencil);
+  margin: 2rem 0 0;
+}
+
+/* Add-a-task line, like writing on a ruled line */
+.add {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  border-bottom: 2px solid var(--ink);
+}
+
+.add:focus-within { border-bottom-color: var(--red); }
+
+.add input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: 1.7rem;
+  padding: 0.3rem 0;
+}
+
+.add input::placeholder { color: var(--pencil); opacity: 0.8; }
+
+.add button {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-weight: 700;
+  font-size: 1.6rem;
+  padding: 0.2rem 0.25rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.add button:hover { color: var(--red); }
+
+button:focus-visible,
+input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
+
+.empty {
+  font-family: var(--hand);
+  font-size: 1.6rem;
+  color: var(--pencil);
+  margin-top: 2rem;
+}
+
+.list { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+
+.task {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.task label {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* Hand-ticked box */
+.task input[type="checkbox"] {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  flex: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin: 0;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.task input[type="checkbox"]::after {
+  content: "";
+  width: 0.38rem;
+  height: 0.75rem;
+  border: solid var(--red);
+  border-width: 0 3px 3px 0;
+  transform: translateY(-2px) rotate(45deg);
+  opacity: 0;
+}
+
+.task input[type="checkbox"]:checked::after { opacity: 1; }
+
+.task-title { font-size: 1.1rem; overflow-wrap: anywhere; }
+
+.task.done .task-title {
+  color: var(--pencil);
+  text-decoration: line-through;
+  text-decoration-color: var(--red);
+  text-decoration-thickness: 2px;
+}
+
+.delete {
+  background: transparent;
+  border: 0;
+  color: var(--pencil);
+  font-family: var(--body);
+  font-size: 0.85rem;
+  padding: 0.2rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.delete:hover { color: var(--red); }
