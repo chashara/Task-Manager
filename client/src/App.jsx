@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
 
 const STORAGE_KEY = "tasks";
+const PRIORITIES = ["low", "medium", "high"];
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+const NEW_TASK = { title: "", due: null, priority: "medium", category: "General" };
+const DEFAULT_CATEGORIES = ["General", "Work", "Home", "Study", "Personal"];
+const NEW_CATEGORY = "__new__";
 
-// Read saved tasks when the app starts
 function loadTasks() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -11,25 +15,181 @@ function loadTasks() {
   }
 }
 
-function TaskRow({ task, onToggle, onDelete }) {
+// ---- Dates ----
+// Dates are stored as "YYYY-MM-DD". We build "today" from local time on purpose:
+// toISOString() uses UTC and can give the wrong day late in the evening.
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+function dateKey(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function todayKey() {
+  return dateKey(new Date());
+}
+function tomorrowKey() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return dateKey(d);
+}
+function prettyDate(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+// What to show next to a task's due date
+function dueInfo(task) {
+  if (!task.due) return null;
+  const today = todayKey();
+  if (task.due === today) return { text: "Today", overdue: false };
+  if (task.due === tomorrowKey()) return { text: "Tomorrow", overdue: false };
+  if (task.due < today && !task.done) {
+    return { text: `Overdue, ${prettyDate(task.due)}`, overdue: true };
+  }
+  return { text: prettyDate(task.due), overdue: false };
+}
+
+// ---- Sorting ----
+function sortTasks(list, sortBy) {
+  const copy = [...list];
+  copy.sort((a, b) => {
+    if (sortBy === "due" && a.due !== b.due) {
+      if (!a.due) return 1; // tasks without a date go last
+      if (!b.due) return -1;
+      return a.due < b.due ? -1 : 1;
+    }
+    if (sortBy === "priority") {
+      const diff = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+      if (diff) return diff;
+    }
+    return b.createdAt.localeCompare(a.createdAt); // newest first
+  });
+  return copy;
+}
+
+// ---- The form used for both adding and editing ----
+function TaskForm({ initial, categories, submitLabel, onSubmit, onCancel, resetOnSubmit }) {
+  const [title, setTitle] = useState(initial.title);
+  const [due, setDue] = useState(initial.due || "");
+  const [priority, setPriority] = useState(initial.priority);
+  const [category, setCategory] = useState(initial.category);
+  const [newCategory, setNewCategory] = useState("");
+  const creating = category === NEW_CATEGORY;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    const finalCategory = creating ? newCategory.trim() || "General" : category;
+    onSubmit({
+      title: cleanTitle,
+      due: due || null,
+      priority,
+      category: finalCategory,
+    });
+    if (resetOnSubmit) {
+      setTitle("");
+      setDue("");
+      setPriority("medium");
+      setNewCategory("");
+      if (creating) setCategory(finalCategory); // keep the new category selected
+    }
+  }
+
   return (
-    <li className={task.done ? "task done" : "task"}>
+    <form className="task-form" onSubmit={handleSubmit}>
+      <div className="title-line">
+        <input
+          className="title-input"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What needs doing?"
+          aria-label="Task title"
+        />
+        <button type="submit" className="primary">{submitLabel}</button>
+        {onCancel && (
+          <button type="button" className="link" onClick={onCancel}>Cancel</button>
+        )}
+      </div>
+      <div className="details-line">
+        <label>
+          Due
+          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+        <label>
+          Priority
+          <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Category
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+            <option value={NEW_CATEGORY}>+ New category...</option>
+          </select>
+        </label>
+        {creating && (
+          <label>
+            Name
+            <input
+              className="new-cat"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              maxLength={30}
+              placeholder="e.g. Gym"
+              autoFocus
+            />
+          </label>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function TaskRow({ task, onToggle, onEdit, onDelete }) {
+  const due = dueInfo(task);
+  return (
+    <li className={`task${task.done ? " done" : ""}`}>
       <label>
         <input type="checkbox" checked={task.done} onChange={() => onToggle(task.id)} />
-        <span className="task-title">{task.title}</span>
+        <span className="task-text">
+          <span className="task-title">{task.title}</span>
+          <span className="task-meta">
+            {due && <span className={due.overdue ? "due overdue-text" : "due"}>{due.text}</span>}
+            {task.priority !== "medium" && (
+              <span className={`prio prio-${task.priority}`}>{task.priority}</span>
+            )}
+            {task.category !== "General" && <span className="cat">{task.category}</span>}
+          </span>
+        </span>
       </label>
-      <button className="delete" onClick={() => onDelete(task.id)} aria-label={`Delete ${task.title}`}>
-        Delete
-      </button>
+      <div className="actions">
+        <button className="link" onClick={() => onEdit(task.id)}>Edit</button>
+        <button className="delete" onClick={() => onDelete(task.id)} aria-label={`Delete ${task.title}`}>
+          Delete
+        </button>
+      </div>
     </li>
   );
 }
 
 export default function App() {
   const [tasks, setTasks] = useState(loadTasks);
-  const [title, setTitle] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [sortBy, setSortBy] = useState("due");
 
-  // Save every time the task list changes
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
@@ -38,24 +198,21 @@ export default function App() {
     }
   }, [tasks]);
 
-  function addTask(e) {
-    e.preventDefault();
-    const clean = title.trim();
-    if (!clean) return;
+  function addTask(values) {
     setTasks((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
-        title: clean,
-        due: null,
-        priority: "medium",
-        category: "General",
+        ...values,
         done: false,
         subtasks: [],
         createdAt: new Date().toISOString(),
       },
     ]);
-    setTitle("");
+  }
+
+  function updateTask(id, values) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...values } : t)));
   }
 
   function toggleTask(id) {
@@ -66,42 +223,110 @@ export default function App() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
-  const open = tasks.filter((t) => !t.done);
-  const done = tasks.filter((t) => t.done);
+  const categories = [...new Set(["General", ...tasks.map((t) => t.category)])].sort();
+  const formCategories = [
+  ...DEFAULT_CATEGORIES,
+  ...categories.filter((c) => !DEFAULT_CATEGORIES.includes(c)),
+];
+  // if the chosen category no longer exists (all its tasks were deleted), show everything
+  const activeCategory = categories.includes(filterCategory) ? filterCategory : "all";
+
+  const visible = tasks.filter(
+    (t) =>
+      (activeCategory === "all" || t.category === activeCategory) &&
+      (filterPriority === "all" || t.priority === filterPriority)
+  );
+  const open = sortTasks(visible.filter((t) => !t.done), sortBy);
+  const done = sortTasks(visible.filter((t) => t.done), "newest");
+
+  const today = todayKey();
+  const openCount = tasks.filter((t) => !t.done).length;
+  const doneCount = tasks.length - openCount;
+  const overdueCount = tasks.filter((t) => !t.done && t.due && t.due < today).length;
+
+  function renderTask(t) {
+    if (t.id === editingId) {
+      return (
+        <li key={t.id} className="task editing">
+          <TaskForm
+            initial={t}
+            categories={formCategories}
+            submitLabel="Save"
+            onSubmit={(values) => {
+              updateTask(t.id, values);
+              setEditingId(null);
+            }}
+            onCancel={() => setEditingId(null)}
+          />
+        </li>
+      );
+    }
+    return (
+      <TaskRow
+        key={t.id}
+        task={t}
+        onToggle={toggleTask}
+        onEdit={setEditingId}
+        onDelete={deleteTask}
+      />
+    );
+  }
 
   return (
     <main className="page">
-      <h1>Task Manager</h1>
+      <h1>Tasks</h1>
       <p className="summary">
-        {open.length} open, {done.length} done
+        {openCount} to do, {doneCount} done
+        {overdueCount > 0 && `, ${overdueCount} overdue`}
       </p>
 
-      <form className="add" onSubmit={addTask}>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add a task"
-          aria-label="New task"
-        />
-        <button type="submit">Add</button>
-      </form>
+        <TaskForm initial={NEW_TASK} categories={formCategories} submitLabel="Add" onSubmit={addTask} resetOnSubmit />
 
-      {tasks.length === 0 && <p className="empty">Nothing here yet. Add your first task above.</p>}
 
-      <ul className="list">
-        {open.map((t) => (
-          <TaskRow key={t.id} task={t} onToggle={toggleTask} onDelete={deleteTask} />
-        ))}
-      </ul>
+
+      {tasks.length > 0 && (
+        <div className="toolbar">
+          <label>
+            Show
+            <select value={activeCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+              <option value="all">all categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+              <option value="all">all priorities</option>
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Sort by
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="due">due date</option>
+              <option value="priority">priority</option>
+              <option value="newest">newest</option>
+            </select>
+          </label>
+        </div>
+      )}
+
+      {tasks.length === 0 && (
+        <p className="empty">Nothing on the list. Enjoy it, or add something above.</p>
+      )}
+      {tasks.length > 0 && visible.length === 0 && (
+        <p className="empty">No tasks match these filters.</p>
+      )}
+
+      <ul className="list">{open.map(renderTask)}</ul>
 
       {done.length > 0 && (
         <>
           <h2>Done</h2>
-          <ul className="list">
-            {done.map((t) => (
-              <TaskRow key={t.id} task={t} onToggle={toggleTask} onDelete={deleteTask} />
-            ))}
-          </ul>
+          <ul className="list">{done.map(renderTask)}</ul>
         </>
       )}
     </main>

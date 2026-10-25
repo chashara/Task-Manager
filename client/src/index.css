@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark;
   --desk: #e6dfd0;
   --paper: #fbf7ec;
   --ink: #25304a;
@@ -34,7 +35,7 @@ body {
 /* The sheet of paper */
 .page {
   position: relative;
-  max-width: 640px;
+  max-width: 680px;
   min-height: 70vh;
   margin: 2rem auto 4rem;
   padding: 2.5rem 1.5rem 3rem 4.5rem;
@@ -87,17 +88,21 @@ h2 {
   margin: 2rem 0 0;
 }
 
-/* Add-a-task line, like writing on a ruled line */
-.add {
+button:focus-visible,
+input:focus-visible,
+select:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
+
+/* Add / edit form */
+.title-line {
   display: flex;
   align-items: flex-end;
   gap: 1rem;
   border-bottom: 2px solid var(--ink);
 }
 
-.add:focus-within { border-bottom-color: var(--red); }
+.title-line:focus-within { border-bottom-color: var(--red); }
 
-.add input {
+.title-input {
   flex: 1;
   min-width: 0;
   border: 0;
@@ -109,9 +114,9 @@ h2 {
   padding: 0.3rem 0;
 }
 
-.add input::placeholder { color: var(--pencil); opacity: 0.8; }
+.title-input::placeholder { color: var(--pencil); opacity: 0.8; }
 
-.add button {
+.primary {
   background: transparent;
   border: 0;
   color: var(--ink);
@@ -125,10 +130,50 @@ h2 {
   text-underline-offset: 4px;
 }
 
-.add button:hover { color: var(--red); }
+.primary:hover { color: var(--red); }
 
-button:focus-visible,
-input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
+.details-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin-top: 0.6rem;
+  font-family: var(--hand);
+  font-size: 1.3rem;
+  color: var(--pencil);
+}
+
+.details-line label,
+.toolbar label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.details-line input,
+.details-line select,
+.toolbar select {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--pencil);
+  border-radius: 0;
+  padding: 0.1rem 0.15rem;
+}
+
+.details-line input[list] { width: 9rem; }
+
+/* Filters and sorting */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 1.75rem 0 0.25rem;
+  font-family: var(--hand);
+  font-size: 1.3rem;
+  color: var(--pencil);
+}
 
 .empty {
   font-family: var(--hand);
@@ -137,20 +182,23 @@ input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
   margin-top: 2rem;
 }
 
+/* Task rows */
 .list { list-style: none; margin: 0.75rem 0 0; padding: 0; }
 
 .task {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.65rem 0;
   border-bottom: 1px solid var(--rule);
 }
 
-.task label {
+.task.editing { display: block; padding: 1rem 0 1.1rem; }
+
+.task > label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.9rem;
   flex: 1;
   min-width: 0;
@@ -165,7 +213,7 @@ input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
   flex: none;
   width: 1.3rem;
   height: 1.3rem;
-  margin: 0;
+  margin: 0.2rem 0 0;
   border: 2px solid var(--ink);
   border-radius: 3px;
   background: transparent;
@@ -184,7 +232,28 @@ input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
 
 .task input[type="checkbox"]:checked::after { opacity: 1; }
 
+.task-text { display: flex; flex-direction: column; min-width: 0; }
+
 .task-title { font-size: 1.1rem; overflow-wrap: anywhere; }
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.9rem;
+  font-family: var(--hand);
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--pencil);
+}
+
+.task-meta:empty { display: none; }
+
+.overdue-text { color: var(--red); font-weight: 700; }
+
+.prio-high { color: var(--red); }
+.prio-high::before { content: "! "; }
+
+.cat::before { content: "#"; }
 
 .task.done .task-title {
   color: var(--pencil);
@@ -193,6 +262,11 @@ input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
   text-decoration-thickness: 2px;
 }
 
+.task.done .task-meta { opacity: 0.6; }
+
+.actions { display: flex; gap: 0.75rem; flex: none; }
+
+.link,
 .delete {
   background: transparent;
   border: 0;
@@ -204,4 +278,18 @@ input:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
   text-decoration: underline;
 }
 
+.link:hover,
 .delete:hover { color: var(--red); }
+
+.details-line .new-cat { width: 9rem; }
+
+select,
+option {
+  background-color: var(--paper);
+  color: var(--ink);
+
+}
+
+select option:checked {
+  background-color: var(--rule);
+}
