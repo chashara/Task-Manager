@@ -16,7 +16,7 @@ function loadTasks() {
 }
 
 // ---- Dates ----
-// Dates are stored as "YYYY-MM-DD". We build "today" from local time on purpose:
+// Dates are stored as "YYYY-MM-DD". "Today" is built from local time on purpose:
 // toISOString() uses UTC and can give the wrong day late in the evening.
 function pad(n) {
   return String(n).padStart(2, "0");
@@ -71,7 +71,7 @@ function sortTasks(list, sortBy) {
   return copy;
 }
 
-// ---- The form used for both adding and editing ----
+// ---- The form used for adding, editing and the AI preview ----
 function TaskForm({ initial, categories, submitLabel, onSubmit, onCancel, resetOnSubmit }) {
   const [title, setTitle] = useState(initial.title);
   const [due, setDue] = useState(initial.due || "");
@@ -155,6 +155,94 @@ function TaskForm({ initial, categories, submitLabel, onSubmit, onCancel, resetO
   );
 }
 
+// ---- Type a sentence, check what the AI understood, then add it ----
+function SmartAdd({ categories, onConfirm, onPreviewChange }) {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [runs, setRuns] = useState(0); // changes the preview form's key so it resets for each new result
+
+
+  useEffect(() => {
+    onPreviewChange(Boolean(preview));
+  }, [preview, onPreviewChange]);
+
+  async function handleParse(e) {
+    e.preventDefault();
+    const clean = text.trim();
+    if (!clean || loading) return;
+
+    setLoading(true);
+    setError("");
+    setPreview(null);
+    try {
+      const res = await fetch("/api/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean, today: todayKey(), categories }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.task) {
+        throw new Error(data.error || "Could not reach the server. Is it running?");
+      }
+      setPreview(data.task);
+      setRuns((n) => n + 1);
+    } catch (err) {
+      setError(
+        err instanceof TypeError ? "Could not reach the server. Is it running?" : err.message
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // the AI may suggest a category the list doesn't have yet
+  const previewCategories =
+    preview && !categories.includes(preview.category)
+      ? [...categories, preview.category]
+      : categories;
+
+  return (
+    <section className="smart">
+      <p className="field-label">Say it in a sentence</p>
+      <form className="title-line" onSubmit={handleParse}>
+        <input
+          className="title-input"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. send the invoice to Mika on Friday, it's urgent"
+          aria-label="Describe a task in your own words"
+          maxLength={300}
+        />
+        <button type="submit" className="primary" disabled={loading}>
+          {loading ? "Reading..." : "Add with AI"}
+        </button>
+      </form>
+
+      {error && <p className="error-note">{error}</p>}
+
+      {preview && (
+        <div className="preview">
+          <p className="preview-label">Here's what I understood. Fix anything that's off:</p>
+          <TaskForm
+            key={runs}
+            initial={preview}
+            categories={previewCategories}
+            submitLabel="Add task"
+            onSubmit={(values) => {
+              onConfirm(values);
+              setPreview(null);
+              setText("");
+            }}
+            onCancel={() => setPreview(null)}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
 function TaskRow({ task, onToggle, onEdit, onDelete }) {
   const due = dueInfo(task);
   return (
@@ -188,7 +276,7 @@ export default function App() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [sortBy, setSortBy] = useState("due");
-
+  const [previewing, setPreviewing] = useState(false);
 
   useEffect(() => {
     try {
@@ -223,11 +311,12 @@ export default function App() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
+  // categories in use (for the filter) and the full list for the forms
   const categories = [...new Set(["General", ...tasks.map((t) => t.category)])].sort();
   const formCategories = [
-  ...DEFAULT_CATEGORIES,
-  ...categories.filter((c) => !DEFAULT_CATEGORIES.includes(c)),
-];
+    ...DEFAULT_CATEGORIES,
+    ...categories.filter((c) => !DEFAULT_CATEGORIES.includes(c)),
+  ];
   // if the chosen category no longer exists (all its tasks were deleted), show everything
   const activeCategory = categories.includes(filterCategory) ? filterCategory : "all";
 
@@ -280,9 +369,20 @@ export default function App() {
         {overdueCount > 0 && `, ${overdueCount} overdue`}
       </p>
 
-        <TaskForm initial={NEW_TASK} categories={formCategories} submitLabel="Add" onSubmit={addTask} resetOnSubmit />
+      <SmartAdd categories={formCategories} onConfirm={addTask} onPreviewChange={setPreviewing} />
 
-
+{!previewing && (
+  <>
+    <p className="field-label">Or fill it in yourself</p>
+    <TaskForm
+      initial={NEW_TASK}
+      categories={formCategories}
+      submitLabel="Add"
+      onSubmit={addTask}
+      resetOnSubmit
+    />
+  </>
+)}
 
       {tasks.length > 0 && (
         <div className="toolbar">

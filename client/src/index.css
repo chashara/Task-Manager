@@ -293,3 +293,36 @@ option {
 select option:checked {
   background-color: var(--rule);
 }
+
+.field-label {
+  font-family: var(--hand);
+  font-size: 1.4rem;
+  color: var(--pencil);
+  margin: 1.5rem 0 0.1rem;
+}
+
+.smart { margin-bottom: 1rem; }
+.smart .field-label { margin-top: 0; }
+
+.primary:disabled { opacity: 0.6; cursor: default; }
+
+.error-note {
+  font-family: var(--hand);
+  font-size: 1.35rem;
+  color: var(--red);
+  margin: 0.5rem 0 0;
+}
+
+.preview {
+  margin-top: 1.1rem;
+  padding: 0.9rem 1rem 1.1rem;
+  border: 2px dashed var(--pencil);
+  border-radius: 4px;
+}
+
+.preview-label {
+  font-family: var(--hand);
+  font-size: 1.4rem;
+  color: var(--pencil);
+  margin: 0 0 0.5rem;
+}
