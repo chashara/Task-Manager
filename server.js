@@ -1,8 +1,22 @@
 import express from "express";
-import { parseTask, realDate, AiOutputError } from "./ai.js";
+import { parseTask, breakdownTask, realDate, AiOutputError } from "./ai.js";
 
 const app = express();
 app.use(express.json({ limit: "20kb" }));
+
+function sendError(err, res, rephraseMessage) {
+  if (err instanceof AiOutputError) {
+    return res.status(422).json({ error: rephraseMessage });
+  }
+  console.error(err);
+  if (err.status === 429) {
+    return res.status(429).json({ error: "The daily free AI quota has been reached. Try again tomorrow." });
+  }
+  if (err.status === 503 || err.status === 504) {
+    return res.status(503).json({ error: "The AI model is slow or busy right now. Try again in a moment." });
+  }
+  res.status(500).json({ error: "Something went wrong. Try again in a minute." });
+}
 
 app.post("/api/parse", async (req, res) => {
   const text = String(req.body?.text ?? "").trim();
@@ -23,17 +37,20 @@ app.post("/api/parse", async (req, res) => {
     const task = await parseTask(text, today, categories.length ? categories : ["General"]);
     res.json({ task });
   } catch (err) {
-    if (err instanceof AiOutputError) {
-      return res.status(422).json({ error: "I couldn't turn that into a task. Try rephrasing, or add it by hand." });
-    }
-    console.error(err);
-    if (err.status === 429) {
-      return res.status(429).json({ error: "The daily free AI quota has been reached. Add the task by hand, or try again tomorrow." });
-    }
-    if (err.status === 503) {
-      return res.status(503).json({ error: "The AI model is busy right now. Try again in a moment." });
-    }
-    res.status(500).json({ error: "Something went wrong. Try again in a minute." });
+    sendError(err, res, "I couldn't turn that into a task. Try rephrasing, or add it by hand.");
+  }
+});
+
+app.post("/api/breakdown", async (req, res) => {
+  const title = String(req.body?.title ?? "").trim();
+  if (!title) return res.status(400).json({ error: "This task has no title." });
+  if (title.length > 120) return res.status(400).json({ error: "That title is too long." });
+
+  try {
+    const subtasks = await breakdownTask(title);
+    res.json({ subtasks });
+  } catch (err) {
+    sendError(err, res, "I couldn't break that down. Try again, or add steps yourself.");
   }
 });
 

@@ -163,7 +163,7 @@ function SmartAdd({ categories, onConfirm, onPreviewChange }) {
   const [preview, setPreview] = useState(null);
   const [runs, setRuns] = useState(0); // changes the preview form's key so it resets for each new result
 
-
+  // tell the page whether a preview is open
   useEffect(() => {
     onPreviewChange(Boolean(preview));
   }, [preview, onPreviewChange]);
@@ -243,29 +243,108 @@ function SmartAdd({ categories, onConfirm, onPreviewChange }) {
   );
 }
 
-function TaskRow({ task, onToggle, onEdit, onDelete }) {
+// ---- The AI's suggested steps: untick or edit, then add the ones you want ----
+function BreakdownProposal({ steps, onAdd, onCancel }) {
+  const [items, setItems] = useState(() => steps.map((text) => ({ text, keep: true })));
+
+  function change(index, patch) {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+  }
+
+  const chosen = items.filter((it) => it.keep && it.text.trim()).map((it) => it.text.trim());
+
+  return (
+    <div className="proposal">
+      <p className="preview-label">Suggested steps. Untick or edit any you don't want:</p>
+      {items.map((it, i) => (
+        <div className="step" key={i}>
+          <input
+            type="checkbox"
+            checked={it.keep}
+            onChange={(e) => change(i, { keep: e.target.checked })}
+            aria-label={`Include step ${i + 1}`}
+          />
+          <input
+            className="step-input"
+            value={it.text}
+            onChange={(e) => change(i, { text: e.target.value })}
+            maxLength={100}
+            aria-label={`Step ${i + 1}`}
+          />
+        </div>
+      ))}
+      <div className="proposal-actions">
+        <button className="primary" disabled={chosen.length === 0} onClick={() => onAdd(chosen)}>
+          Add {chosen.length} step{chosen.length === 1 ? "" : "s"}
+        </button>
+        <button className="link" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function TaskRow({
+  task,
+  onToggle,
+  onEdit,
+  onDelete,
+  onBreakdown,
+  breakdownBusy,
+  onToggleSub,
+  onDeleteSub,
+  children,
+}) {
   const due = dueInfo(task);
+  const subs = task.subtasks || [];
+  const doneSubs = subs.filter((s) => s.done).length;
+
   return (
     <li className={`task${task.done ? " done" : ""}`}>
-      <label>
-        <input type="checkbox" checked={task.done} onChange={() => onToggle(task.id)} />
-        <span className="task-text">
-          <span className="task-title">{task.title}</span>
-          <span className="task-meta">
-            {due && <span className={due.overdue ? "due overdue-text" : "due"}>{due.text}</span>}
-            {task.priority !== "medium" && (
-              <span className={`prio prio-${task.priority}`}>{task.priority}</span>
-            )}
-            {task.category !== "General" && <span className="cat">{task.category}</span>}
+      <div className="task-main">
+        <label>
+          <input type="checkbox" checked={task.done} onChange={() => onToggle(task.id)} />
+          <span className="task-text">
+            <span className="task-title">{task.title}</span>
+            <span className="task-meta">
+              {due && <span className={due.overdue ? "due overdue-text" : "due"}>{due.text}</span>}
+              {task.priority !== "medium" && (
+                <span className={`prio prio-${task.priority}`}>{task.priority}</span>
+              )}
+              {task.category !== "General" && <span className="cat">{task.category}</span>}
+              {subs.length > 0 && <span>{doneSubs}/{subs.length} steps</span>}
+            </span>
           </span>
-        </span>
-      </label>
-      <div className="actions">
-        <button className="link" onClick={() => onEdit(task.id)}>Edit</button>
-        <button className="delete" onClick={() => onDelete(task.id)} aria-label={`Delete ${task.title}`}>
-          Delete
-        </button>
+        </label>
+        <div className="actions">
+          {!task.done && (
+            <button className="link" onClick={() => onBreakdown(task)} disabled={breakdownBusy}>
+              Break down
+            </button>
+          )}
+          <button className="link" onClick={() => onEdit(task.id)}>Edit</button>
+          <button className="delete" onClick={() => onDelete(task.id)} aria-label={`Delete ${task.title}`}>
+            Delete
+          </button>
+        </div>
       </div>
+
+      {subs.length > 0 && (
+        <ul className="subtasks">
+          {subs.map((s) => (
+            <li key={s.id} className={s.done ? "sub done" : "sub"}>
+              <label>
+                <input type="checkbox" checked={s.done} onChange={() => onToggleSub(task.id, s.id)} />
+                <span>{s.title}</span>
+              </label>
+              <button className="delete" onClick={() => onDeleteSub(task.id, s.id)} aria-label={`Remove step ${s.title}`}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {children}
     </li>
   );
 }
@@ -277,6 +356,8 @@ export default function App() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [sortBy, setSortBy] = useState("due");
   const [previewing, setPreviewing] = useState(false);
+  // { taskId, status: "loading" | "ready" | "error", steps?, message? } or null
+  const [breakdown, setBreakdown] = useState(null);
 
   useEffect(() => {
     try {
@@ -309,6 +390,73 @@ export default function App() {
 
   function deleteTask(id) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+    setBreakdown((prev) => (prev && prev.taskId === id ? null : prev));
+  }
+
+  // ---- Subtasks ----
+  function addSubtasks(taskId, titles) {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              subtasks: [
+                ...(t.subtasks || []),
+                ...titles.map((title) => ({ id: crypto.randomUUID(), title, done: false })),
+              ],
+            }
+          : t
+      )
+    );
+    setBreakdown(null);
+  }
+
+  function toggleSubtask(taskId, subId) {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) }
+          : t
+      )
+    );
+  }
+
+  function deleteSubtask(taskId, subId) {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, subtasks: t.subtasks.filter((s) => s.id !== subId) } : t
+      )
+    );
+  }
+
+  // ---- Ask the AI to break a task down ----
+  async function startBreakdown(task) {
+    setBreakdown({ taskId: task.id, status: "loading" });
+    try {
+      const res = await fetch("/api/breakdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: task.title }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.subtasks) {
+        throw new Error(data.error || "Could not reach the server. Is it running?");
+      }
+      // only apply the result if this task is still the one waiting
+      setBreakdown((prev) =>
+        prev && prev.taskId === task.id && prev.status === "loading"
+          ? { taskId: task.id, status: "ready", steps: data.subtasks }
+          : prev
+      );
+    } catch (err) {
+      const message =
+        err instanceof TypeError ? "Could not reach the server. Is it running?" : err.message;
+      setBreakdown((prev) =>
+        prev && prev.taskId === task.id && prev.status === "loading"
+          ? { taskId: task.id, status: "error", message }
+          : prev
+      );
+    }
   }
 
   // categories in use (for the filter) and the full list for the forms
@@ -332,6 +480,29 @@ export default function App() {
   const openCount = tasks.filter((t) => !t.done).length;
   const doneCount = tasks.length - openCount;
   const overdueCount = tasks.filter((t) => !t.done && t.due && t.due < today).length;
+  const breakdownBusy = breakdown?.status === "loading";
+
+  function renderPanel(t) {
+    if (!breakdown || breakdown.taskId !== t.id) return null;
+    if (breakdown.status === "loading") {
+      return <p className="breakdown-note">Breaking it down...</p>;
+    }
+    if (breakdown.status === "error") {
+      return (
+        <p className="error-note">
+          {breakdown.message}{" "}
+          <button className="link" onClick={() => setBreakdown(null)}>Close</button>
+        </p>
+      );
+    }
+    return (
+      <BreakdownProposal
+        steps={breakdown.steps}
+        onAdd={(titles) => addSubtasks(t.id, titles)}
+        onCancel={() => setBreakdown(null)}
+      />
+    );
+  }
 
   function renderTask(t) {
     if (t.id === editingId) {
@@ -357,7 +528,13 @@ export default function App() {
         onToggle={toggleTask}
         onEdit={setEditingId}
         onDelete={deleteTask}
-      />
+        onBreakdown={startBreakdown}
+        breakdownBusy={breakdownBusy}
+        onToggleSub={toggleSubtask}
+        onDeleteSub={deleteSubtask}
+      >
+        {renderPanel(t)}
+      </TaskRow>
     );
   }
 
@@ -371,18 +548,18 @@ export default function App() {
 
       <SmartAdd categories={formCategories} onConfirm={addTask} onPreviewChange={setPreviewing} />
 
-{!previewing && (
-  <>
-    <p className="field-label">Or fill it in yourself</p>
-    <TaskForm
-      initial={NEW_TASK}
-      categories={formCategories}
-      submitLabel="Add"
-      onSubmit={addTask}
-      resetOnSubmit
-    />
-  </>
-)}
+      {!previewing && (
+        <>
+          <p className="field-label">Or fill it in yourself</p>
+          <TaskForm
+            initial={NEW_TASK}
+            categories={formCategories}
+            submitLabel="Add"
+            onSubmit={addTask}
+            resetOnSubmit
+          />
+        </>
+      )}
 
       {tasks.length > 0 && (
         <div className="toolbar">

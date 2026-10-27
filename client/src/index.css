@@ -185,18 +185,19 @@ select:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
 /* Task rows */
 .list { list-style: none; margin: 0.75rem 0 0; padding: 0; }
 
-.task {
+.task { border-bottom: 1px solid var(--rule); }
+
+.task.editing { padding: 1rem 0 1.1rem; }
+
+.task-main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.65rem 0;
-  border-bottom: 1px solid var(--rule);
 }
 
-.task.editing { display: block; padding: 1rem 0 1.1rem; }
-
-.task > label {
+.task-main > label {
   display: flex;
   align-items: flex-start;
   gap: 0.9rem;
@@ -204,7 +205,6 @@ select:focus-visible { outline: 2px dashed var(--red); outline-offset: 3px; }
   min-width: 0;
   cursor: pointer;
 }
-
 /* Hand-ticked box */
 .task input[type="checkbox"] {
   appearance: none;
@@ -326,3 +326,72 @@ select option:checked {
   color: var(--pencil);
   margin: 0 0 0.5rem;
 }
+
+.link:disabled { opacity: 0.45; cursor: default; }
+
+/* Subtasks under a task */
+.subtasks { list-style: none; margin: 0 0 0.7rem; padding: 0 0 0 2.2rem; }
+
+.sub {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0;
+}
+
+.sub label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  font-size: 0.98rem;
+}
+
+.sub input[type="checkbox"] { width: 1.05rem; height: 1.05rem; margin-top: 0.25rem; }
+
+.sub.done span {
+  color: var(--pencil);
+  text-decoration: line-through;
+  text-decoration-color: var(--red);
+}
+
+/* The AI's suggested steps */
+.breakdown-note {
+  font-family: var(--hand);
+  font-size: 1.35rem;
+  color: var(--pencil);
+  margin: 0 0 0.8rem;
+}
+
+.proposal {
+  margin: 0.2rem 0 1rem;
+  padding: 0.8rem 1rem 1rem;
+  border: 2px dashed var(--pencil);
+  border-radius: 4px;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.step input[type="checkbox"] { width: 1.05rem; height: 1.05rem; margin-top: 0.4rem; }
+
+.step-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 1rem;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--pencil);
+  padding: 0.2rem 0.1rem;
+}
+
+.proposal-actions { display: flex; align-items: baseline; gap: 1.2rem; margin-top: 0.8rem; }
